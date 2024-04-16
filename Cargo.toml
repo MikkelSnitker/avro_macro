@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 apache-avro = {version = "0.16.0", features = ["derive"] }
-chrono = "0.4.38"
 derive = "1.0.0"
 proc-macro2 = "1.0.80"
 quote = "1.0.36"
