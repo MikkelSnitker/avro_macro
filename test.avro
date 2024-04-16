@@ -1,20 +1,286 @@
 {
-"type" : "record",
-"namespace" : "Tutorialspoint",
-"name" : "Employee",
-"fields" : [
- { "name": "name" , "type" : "string" },
- { "name" : "age" , "type" : "int" },
- { 
-    "name" : "department" , 
-    "type" : {
-        "type": "record", 
-        "fields":[{
-            "name": "id",
+    "name": "WishlistWishRemoved",
+    "type": "record",
+    "fields": [
+        {
+            "name": "eventName",
             "type": "string"
-        }],
-        "name": "Department"
-    }
- }
- ]
+        },
+        {
+            "name": "meta",
+            "type": {
+                "name": "WishlistWishRemovedMeta",
+                "type": "record",
+                "fields": [
+                    {
+                        "name": "referer",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "session",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "tracking_id",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "user_agent",
+                        "type": "string"
+                    },
+                    {
+                        "name": "x_api_key",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_api_version2",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_bluecoat_via",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_boozt_lang",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_boozt_store",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_browser_session",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_client_id",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_client_version",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_consumer_transaktions_id",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_device_type",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_enrichmentstatus",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_features",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_forwarded_for",
+                        "type": "string"
+                    },
+                    {
+                        "name": "x_forwarded_host",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_forwarded_port",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_forwarded_proto",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_forwarded_scheme",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_g3_pool",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_imforwards",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_mwg_via",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_ns_patoken",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_original_forwarded_for",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_proxyuser_ip",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_qa_branch",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_real_ip",
+                        "type": "string"
+                    },
+                    {
+                        "name": "x_release_version",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_request_id",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_requested_with",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_scheme",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_tp_category",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_webshop_env",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_yotta_opt_state",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    },
+                    {
+                        "name": "x_yottaa_opt_state",
+                        "type": [
+                            "null",
+                            "string"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "payload",
+            "type": {
+                "name": "WishlistWishRemovedPayload",
+                "type": "record",
+                "fields": [
+                    {
+                        "name": "id",
+                        "type": "string"
+                    },
+                    {
+                        "name": "wishId",
+                        "type": "string"
+                    }
+                ]
+            }
+        }
+    ]
 }
