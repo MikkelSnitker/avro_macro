@@ -3,7 +3,18 @@
 "namespace" : "Tutorialspoint",
 "name" : "Employee",
 "fields" : [
- { "name": "Name" , "type" : "string" },
- { "name" : "age" , "type" : "int" }
+ { "name": "name" , "type" : "string" },
+ { "name" : "age" , "type" : "int" },
+ { 
+    "name" : "department" , 
+    "type" : {
+        "type": "record", 
+        "fields":[{
+            "name": "id",
+            "type": "string"
+        }],
+        "name": "Department"
+    }
+ }
  ]
 }

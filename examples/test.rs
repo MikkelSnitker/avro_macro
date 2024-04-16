@@ -4,13 +4,19 @@ use avro_macro::load_schema;
 
 
 #[schema("test.avro")]
-mod Test {}
+mod Test {
 
-fn main() {
-   let schema = Test::Employee::get_schema();
    
-    println!("{}", schema.canonical_form());
+}
 
+pub fn process(a: Test::Employee){
+   println!("{}", a.department.id);
 
+}
+fn main() {
+  //  process(Blah::Hmm{ test: todo!(), foo: todo!() });
+  
+  let schema = Test::Employee::get_schema();
+  println!("{}", schema.canonical_form());
 }
 

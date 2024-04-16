@@ -7,7 +7,7 @@ use apache_avro::Schema;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Parser;
-use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Type};
+use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Token, Type, Visibility};
 
 fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, items: &mut Vec<Item>) -> TokenStream {
     
@@ -15,7 +15,7 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
        
         apache_avro::Schema::Record(record) => {
             let name = Ident::new(record.name.name.as_str(), Span::call_site());
-            
+          
             let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
                 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, AvroSchema)]
                 pub struct #name {}}).unwrap();
