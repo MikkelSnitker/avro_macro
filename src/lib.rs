@@ -106,22 +106,28 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     let mut item_mod = parse_macro_input!(input as syn::ItemMod);
     let p = parse_macro_input!(args as syn::LitStr);
     
-    let mut file = fs::File::open(p.value()).unwrap();
-    let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
   
     if let Some((b,  mut items)) = item_mod.content {
         let uses = quote! {
             use serde::{Deserialize, Serialize};
             use apache_avro::AvroSchema;
          };
-        
-        items.push(Item::Verbatim(uses));
-        let _ =  get_type(&schema, None, &mut items);
+         items.push(Item::Verbatim(uses));
+
+        for entry in  glob::glob(p.value().as_str()).expect("INVALID PATTERN") {
+            match entry {
+                Ok(path) => {
+                    let mut file = fs::File::open(path).unwrap();
+                    let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
+                    let _ =  get_type(&schema, None, &mut items);
+
+                },
+                Err(e) => {}
+            }
+        }
+ 
         item_mod.content = Some((b, items));
     }
-   
-    
-    
 
     return quote! {
         #item_mod

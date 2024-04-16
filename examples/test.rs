@@ -3,7 +3,7 @@ use avro_macro::schema;
 use avro_macro::load_schema;
 
 
-#[schema("test.avro")]
+#[schema("*.avro")]
 mod Test {
 
    
@@ -18,5 +18,10 @@ fn main() {
   
   let schema = Test::Employee::get_schema();
   println!("{}", schema.canonical_form());
+
+  let schema = Test::Foo::get_schema();
+  println!("{}", schema.canonical_form());
+
+
 }
 

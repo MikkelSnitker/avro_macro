@@ -1,0 +1,10 @@
+{
+"type" : "record",
+"namespace" : "Tutorialspoint",
+"name" : "Foo",
+"fields" : [
+ { "name": "name" , "type" : "string" },
+ { "name" : "age" , "type" : "int" }
+
+ ]
+}
