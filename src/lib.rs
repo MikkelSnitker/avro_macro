@@ -3,12 +3,13 @@ use std::str::FromStr;
 
 //use proc_macro::{Span, TokenStream};
 
+use apache_avro::schema::Name;
 use apache_avro::Schema;
 use proc_macro::LexError;
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
-use syn::parse::Parser;
-use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Type};
+use quote::{quote, ToTokens};
+use syn::parse::{Parse, Parser};
+use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemStruct, Type, Variant};
 
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,13 @@ impl From<proc_macro2::LexError> for Error {
     }
 }
 
+impl  From<apache_avro::Error> for Error {
+    fn from(error: apache_avro::Error) -> Self {
+        
+        Error {}
+    }
+}
+
 
 
 
@@ -44,7 +52,7 @@ impl From<syn::Error> for Error {
 
 
 
-fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
+fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
     
     match schema.clone() {
        
@@ -52,20 +60,36 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
             let name = Ident::new(record.name.name.as_str(), Span::call_site());
           
             let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
-                #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, AvroSchema)]
+                #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                 pub struct #name {}
             })?;
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
                 for field in record.fields {
                     let field_name =field.name.as_str();
-                    let field_name_sc =  Ident::new(snake(field_name).as_str(), Span::call_site());
-                    let field_type = get_type(&field.schema, Some(schema.clone()), items)?;    
-                    fields.named.push( Field::parse_named.parse2(
-                        quote! {
-                       #[avro(rename = #field_name )]
-                       #[serde(rename = #field_name)]
-                       pub #field_name_sc: #field_type
-                    }).unwrap());
+                    
+                    let field_name_sc =  Ident::new_raw(snake(field_name).as_str(), Span::call_site());
+            
+                    match  get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
+                        Ok(field_type) => 
+                        {
+                            match Field::parse_named.parse2(
+                                quote! {
+                               #[avro(rename = #field_name )]
+                               #[serde(rename = #field_name)]
+                               pub #field_name_sc: #field_type
+                            }) {
+                                Ok(field) => fields.named.push(field),
+                                Err(e) => {
+                                    return Err(e.into());
+                                }
+                            }
+                            
+                        },
+
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    };
                 }
             }
 
@@ -92,12 +116,72 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
                 }
             }
             
-            let item_enum = syn::parse2::<ItemEnum>(quote! { pub enum Name {}})?;
+            
+            let name = match parent {
+                Some(parent) => Ident::new(capitalize(parent.name().unwrap().name.clone()).as_str(), Span::call_site()),
+                None => Ident::new("TEST", Span::call_site()),
+            };
+
+            let mut item_enum: ItemEnum = syn::parse2::<ItemEnum>(quote! { 
+                #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+                pub enum #name {}
+            })?;
+            
+            //apache_avro::schema::derive::AvroSchemaComponent
+            let imp = syn::parse2::<ItemImpl>(quote! {
+                impl apache_avro::schema::derive::AvroSchemaComponent for #name {
+                    fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
+                        todo!()
+                    }
+                }
+            })?;
+            
+            items.push(Item::Impl(imp));
+
+            for variant in variants {
+                let test = match variant {
+                    Schema::Null => quote! { Null },
+                    Schema::Boolean => quote! { Boolean(bool) },
+                    Schema::Int => quote! { Int(i32) },
+                    Schema::Long => quote! { Int(i64) },
+                    Schema::Float => quote! { Float(i32) },
+                    Schema::Double => quote! { Float(i64) },
+                    Schema::Bytes => todo!(),
+                    Schema::String => quote! { String(String )},
+                    Schema::Array(schema) => {
+                        
+                        let ident = parse2::<Ident>(get_type(schema, parent, items)?)?;
+                        quote! { Array(#ident)}
+                    },
+                    Schema::Map(_) => todo!(),
+                    Schema::Union(_) => todo!(),
+                    Schema::Record(_) => todo!(),
+                    Schema::Enum(_) => todo!(),
+                    Schema::Fixed(_) => todo!(),
+                    Schema::Decimal(_) => todo!(),
+                    Schema::Uuid => todo!(),
+                    Schema::Date => todo!(),
+                    Schema::TimeMillis => todo!(),
+                    Schema::TimeMicros => todo!(),
+                    Schema::TimestampMillis => todo!(),
+                    Schema::TimestampMicros => todo!(),
+                    Schema::LocalTimestampMillis => todo!(),
+                    Schema::LocalTimestampMicros => todo!(),
+                    Schema::Duration => todo!(),
+                    Schema::Ref { name } => todo!(),
+                };
+                let v = syn::parse2::<Variant>(test)?;
+                item_enum.variants.push(v);
+            }
+          
+            let name = item_enum.ident.clone();
+
             items.push(Item::Enum(item_enum));
+            
             if nullable {
-                Ok(TokenStream::from_str("Option<i32>")?)
+                Ok(quote! { Option<#name> })
             } else {
-                Ok(TokenStream::from_str("i32")?)
+                Ok(quote! { #name })
             }
             
     
@@ -144,7 +228,8 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     if let Some((b,  mut items)) = item_mod.content {
         let uses = quote! {
             use serde::{Deserialize, Serialize};
-            use apache_avro::AvroSchema;
+            /*use apache_avro::AvroSchema;
+            use apache_avro::schema::derive::AvroSchemaComponent;*/
          };
          items.push(Item::Verbatim(uses));
 
@@ -173,10 +258,13 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
 }
 
 
-fn snake(input: &str) -> String {
+
+fn snake(input: impl Into<String>) -> String {
     let mut out = String::default();
+    let input = input.into();
     let mut chars = input.chars();
     out.push(chars.next().unwrap().to_ascii_lowercase());
+    
     while let Some(ch) = chars.next() {
         match ch.is_ascii_uppercase() {
             true => {
@@ -186,5 +274,16 @@ fn snake(input: &str) -> String {
             false => out.push(ch),
         }
     }
+    
     out
+}
+
+fn capitalize(input: impl Into<String>) -> String {
+    let s = input.into();
+    let mut c = s.chars();
+  
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().chain(c).collect(),
+    }
 }

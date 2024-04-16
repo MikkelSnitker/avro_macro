@@ -1,10 +1,31 @@
 {
-"type" : "record",
-"namespace" : "Tutorialspoint",
-"name" : "Foo",
-"fields" : [
- { "name": "name" , "type" : "string" },
- { "name" : "age" , "type" : "int" }
-
- ]
+    "name": "WishBuyClick",
+    "type": "record",
+    "fields": [
+        {
+            "name": "eventName",
+            "type": "string"
+        },
+        {
+            "name": "payload",
+            "type": {
+                "name": "WishBuyClickPayload",
+                "type": "record",
+                "fields": [
+                    {
+                        "name": "countryCode",
+                        "type": [
+                            "null",
+                            "string",
+                            "int",
+                            {
+                                "type": "array",
+                                "items": "string"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
 }
