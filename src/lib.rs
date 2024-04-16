@@ -7,7 +7,7 @@ use apache_avro::Schema;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Parser;
-use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Token, Type, Visibility};
+use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Type};
 
 fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, items: &mut Vec<Item>) -> TokenStream {
     
