@@ -7,9 +7,9 @@ use apache_avro::schema::Name;
 use apache_avro::Schema;
 use proc_macro::LexError;
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
-use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemStruct, Type, Variant};
+use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, Type, Variant};
 
 
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             let name = Ident::new(record.name.name.as_str(), Span::call_site());
           
             let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
-                #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                 pub struct #name {}
             })?;
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
@@ -103,7 +103,9 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
 
         },
         apache_avro::Schema::Union(s) => {
-            
+            let schema = apache_avro::Schema::Union(s.clone());
+            let schema = schema.canonical_form();
+
             let nullable = s.is_nullable() ;//.variants().iter().any(|&x| x == apache_avro::Schema::Null );
             let variants = s.variants().iter().filter(|&x| *x != apache_avro::Schema::Null  ).collect::<Vec<&Schema>>();
             if variants.len() == 1 {
@@ -123,20 +125,23 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             };
 
             let mut item_enum: ItemEnum = syn::parse2::<ItemEnum>(quote! { 
-                #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug)]
                 pub enum #name {}
             })?;
-            
+           
+         
+           
             //apache_avro::schema::derive::AvroSchemaComponent
             let imp = syn::parse2::<ItemImpl>(quote! {
                 impl apache_avro::schema::derive::AvroSchemaComponent for #name {
                     fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
-                        todo!()
+                        apache_avro::Schema::parse_str(#schema).unwrap()
                     }
                 }
             })?;
             
-            items.push(Item::Impl(imp));
+            
+        
 
             for variant in variants {
                 let test = match variant {
@@ -175,8 +180,11 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             }
           
             let name = item_enum.ident.clone();
-
-            items.push(Item::Enum(item_enum));
+           
+               items.push(Item::Impl(imp));
+                items.push(Item::Enum(item_enum));
+            
+        
             
             if nullable {
                 Ok(quote! { Option<#name> })
@@ -228,23 +236,55 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     if let Some((b,  mut items)) = item_mod.content {
         let uses = quote! {
             use serde::{Deserialize, Serialize};
-            /*use apache_avro::AvroSchema;
-            use apache_avro::schema::derive::AvroSchemaComponent;*/
          };
          items.push(Item::Verbatim(uses));
 
         for entry in  glob::glob(p.value().as_str()).expect("INVALID PATTERN") {
-            match entry {
+           let root = match entry {
                 Ok(path) => {
+                   let file_name = path.file_stem().unwrap();
+                   let file_name = file_name.to_str().unwrap();
+                    let name = Ident::new(file_name, Span::call_site()); 
+                    
+                    let mut module = syn::parse2::<ItemMod>(quote! { pub mod #name {
+                        use serde::{Deserialize, Serialize};
+                    } }).unwrap();
+                    
+                  let mut mod_items: Vec<syn::Item> = Vec::new();
+
                     let mut file = fs::File::open(path.clone()).unwrap();
                     let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
-                    match get_type(&schema, None, &mut items) {
-                        Ok(_) => {},
+                    
+                    match get_type(&schema, None, &mut mod_items) {
+                        Ok(root) => {
+                            
+                            module.content = Some((b, mod_items));
+                            items.push(Item::Mod(module));
+                           
+                           if let Ok(ident) = syn::parse2::<Ident>(root){
+                             Some( quote! {  #name::#ident } )
+                           } else {
+                            None
+                           }
+                           
+                           
+                        },
                         Err(e) => panic!("ERROR PARSING FILE {:?}", path)
                     }
-
+ 
                 },
-                Err(e) => {}
+                Err(e) => {
+                    None
+                }
+            };
+            
+            if let Some(root) = root {
+                match syn::parse2::<ItemUse>(quote! { pub use #root; } ) {
+                    Ok(use_item) =>  {
+                        items.push(Item::Use(use_item));
+                    },
+                    Err(e ) => panic!("FOO {}", e)
+                }
             }
         }
  
