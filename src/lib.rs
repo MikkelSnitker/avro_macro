@@ -4,12 +4,47 @@ use std::str::FromStr;
 //use proc_macro::{Span, TokenStream};
 
 use apache_avro::Schema;
+use proc_macro::LexError;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Parser;
 use syn::{parse_macro_input, Field, Ident, Item, ItemEnum, ItemStruct, Type};
 
-fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, items: &mut Vec<Item>) -> TokenStream {
+
+#[derive(Debug, Clone)]
+struct  Error {
+
+}
+
+impl From<LexError> for Error {
+    fn from(error: LexError) -> Self {
+        
+        Error {}
+    }
+}
+
+
+impl From<proc_macro2::LexError> for Error {
+    fn from(error: proc_macro2::LexError) -> Self {
+        
+        Error {}
+    }
+}
+
+
+
+
+impl From<syn::Error> for Error {
+    fn from(error: syn::Error) -> Self {
+        
+        Error {}
+    }
+}
+
+
+
+
+fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
     
     match schema.clone() {
        
@@ -18,12 +53,13 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
           
             let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
                 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, AvroSchema)]
-                pub struct #name {}}).unwrap();
+                pub struct #name {}
+            })?;
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
                 for field in record.fields {
                     let field_name =field.name.as_str();
                     let field_name_sc =  Ident::new(snake(field_name).as_str(), Span::call_site());
-                    let field_type = get_type(&field.schema, Some(schema.clone()), items);    
+                    let field_type = get_type(&field.schema, Some(schema.clone()), items)?;    
                     fields.named.push( Field::parse_named.parse2(
                         quote! {
                        #[avro(rename = #field_name )]
@@ -37,11 +73,9 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
 
             items.push(Item::Struct(item_struct));
             
-            TokenStream::from_str(record.name.name.as_str()).unwrap()
             
-
-            
-
+           Ok(TokenStream::from_str(record.name.name.as_str())?)
+          
 
         },
         apache_avro::Schema::Union(s) => {
@@ -49,43 +83,43 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<apache_avro::Schema>, i
             let nullable = s.is_nullable() ;//.variants().iter().any(|&x| x == apache_avro::Schema::Null );
             let variants = s.variants().iter().filter(|&x| *x != apache_avro::Schema::Null  ).collect::<Vec<&Schema>>();
             if variants.len() == 1 {
-                let name =  get_type(variants.first().unwrap(),parent, items);
+                let name =  get_type(variants.first().unwrap(),parent, items)?;
                return if nullable {
-                let t = syn::parse2::<Type>(name).unwrap();
-                    quote! { Option<#t>}
+                    let t = syn::parse2::<Type>(name)?;
+                    Ok(quote! { Option<#t>})
                } else {
-                    name
+                    Ok(name)
                 }
             }
             
-            let item_enum = syn::parse2::<ItemEnum>(quote! { pub enum Name {}}).unwrap();
+            let item_enum = syn::parse2::<ItemEnum>(quote! { pub enum Name {}})?;
             items.push(Item::Enum(item_enum));
             if nullable {
-                TokenStream::from_str("Option<i32>").unwrap()    
+                Ok(TokenStream::from_str("Option<i32>")?)
             } else {
-                TokenStream::from_str("i32").unwrap()
+                Ok(TokenStream::from_str("i32")?)
             }
             
     
         },
-        apache_avro::Schema::Int => quote! { i64 },
-        apache_avro::Schema::Boolean => quote! { bool },
-        apache_avro::Schema::Decimal(_) => quote! { f64 },
-        apache_avro::Schema::Bytes => quote! { &[u8] },
-        apache_avro::Schema::Float => quote! { f64 },
-        apache_avro::Schema::Long => quote! { i64 },
-        apache_avro::Schema::String => quote! { String },
+        apache_avro::Schema::Int => Ok(quote! { i64 }),
+        apache_avro::Schema::Boolean => Ok(quote! { bool }),
+        apache_avro::Schema::Decimal(_) => Ok(quote! { f64 }),
+        apache_avro::Schema::Bytes => Ok(quote! { &[u8] }),
+        apache_avro::Schema::Float => Ok(quote! { f64 }),
+        apache_avro::Schema::Long => Ok(quote! { i64 }),
+        apache_avro::Schema::String => Ok(quote! { String }),
         apache_avro::Schema::Map(m) => {
-            let t = get_type(m.as_ref(), parent, items);
+            let t = get_type(m.as_ref(), parent, items)?;
 
-            return quote! {  std::collection::HashMap<String, #t> }.into()
+            return Ok(quote! {  std::collection::HashMap<String, #t> })
         },
-        apache_avro::Schema::Null => quote! { None },
-        apache_avro::Schema::Double => quote! { f32},
+        apache_avro::Schema::Null => Ok(quote! { None }),
+        apache_avro::Schema::Double =>Ok(quote! { f32}),
         apache_avro::Schema::Array(a) => {
-            let t = get_type(a.as_ref(), parent, items);
-            let t = syn::parse2::<Type>(t).unwrap();
-            quote! { Vec<#t> }
+            let t = get_type(a.as_ref(), parent, items)?;
+            let t = syn::parse2::<Type>(t)?;
+            Ok(quote! { Vec<#t> })
         },
         e => {
             panic!(r#"Unsupported type "{:?}""#, e.name())
@@ -117,9 +151,12 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
         for entry in  glob::glob(p.value().as_str()).expect("INVALID PATTERN") {
             match entry {
                 Ok(path) => {
-                    let mut file = fs::File::open(path).unwrap();
+                    let mut file = fs::File::open(path.clone()).unwrap();
                     let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
-                    let _ =  get_type(&schema, None, &mut items);
+                    match get_type(&schema, None, &mut items) {
+                        Ok(_) => {},
+                        Err(e) => panic!("ERROR PARSING FILE {:?}", path)
+                    }
 
                 },
                 Err(e) => {}
