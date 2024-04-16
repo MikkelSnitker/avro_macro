@@ -244,7 +244,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                 Ok(path) => {
                    let file_name = path.file_stem().unwrap();
                    let file_name = file_name.to_str().unwrap();
-                    let name = Ident::new(file_name, Span::call_site()); 
+                    let name = Ident::new(snake(file_name).as_str(), Span::call_site()); 
                     
                     let mut module = syn::parse2::<ItemMod>(quote! { pub mod #name {
                         use serde::{Deserialize, Serialize};
