@@ -9,7 +9,7 @@ use proc_macro::LexError;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
-use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, Type, Variant};
+use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, Type, UseTree, Variant};
 
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,9 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
                 for field in record.fields {
                     let field_name =field.name.as_str();
-                    
+                    if parent == None && field_name == "eventName" {
+                        continue;
+                    }
                     let field_name_sc =  Ident::new_raw(snake(field_name).as_str(), Span::call_site());
             
                     match  get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
@@ -250,7 +252,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                         use serde::{Deserialize, Serialize};
                     } }).unwrap();
                     
-                  let mut mod_items: Vec<syn::Item> = Vec::new();
+                    let mut mod_items: Vec<syn::Item> = Vec::new();
 
                     let mut file = fs::File::open(path.clone()).unwrap();
                     let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
@@ -326,4 +328,45 @@ fn capitalize(input: impl Into<String>) -> String {
         None => String::new(),
         Some(f) => f.to_uppercase().chain(c).collect(),
     }
+}
+
+
+#[proc_macro_attribute]
+pub fn auto_enum(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    todo!();
+
+    let mut item_mod = parse_macro_input!(input as ItemMod);
+    if let Some((brace,  mut items)) = item_mod.content {
+            if !items.is_empty() {
+            let mut auto_enum = parse2::<ItemEnum>(quote! { pub enum Events {} }).unwrap();       
+            
+            for item in &items {
+               if let Item::Use(m) = item {
+                let a = match &m.tree {
+                    UseTree::Path(p) =>  p.ident.to_string(),
+                    _ => "BLAJ".to_string()
+                };
+                println!("{:?}", a);
+               }
+                if let Item::Struct(s) = item {
+                    
+                    panic!("{:?}", s);
+                    let name = &s.ident;
+                    let v = syn::parse2::<Variant>(quote! {  #name(#name) }).unwrap();
+                    auto_enum.variants.push(v);
+                }
+            }
+            items.push(Item::Enum(auto_enum));
+            item_mod.content = Some((brace, items));
+        } else {
+            panic!("EMPTY")
+        }
+    } else {
+        panic!("HMM")
+    }
+    return quote! {
+        #item_mod
+    }
+    .into();
+   
 }
