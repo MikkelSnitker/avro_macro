@@ -5,11 +5,11 @@ use std::str::FromStr;
 
 use apache_avro::schema::Name;
 use apache_avro::Schema;
-use proc_macro::LexError;
+use proc_macro::{LexError, TokenTree};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
-use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, Type, UseTree, Variant};
+use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Type, UseTree, Variant};
 
 
 #[derive(Debug, Clone)]
@@ -52,7 +52,54 @@ impl From<syn::Error> for Error {
 
 
 
-fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
+
+struct AvroInput {
+    pub schema: String,
+    pub exclude: Vec<String>,
+}
+
+impl Parse for AvroInput {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+    
+        let mut exclude = vec![];
+        let path = input.parse::<syn::LitStr>()?;
+
+        while  input.peek(syn::Token![,]) {
+            let _: syn::Token![,] = input.parse()?;
+            if let Ok(ident) =  input.parse::<syn::Ident>() {
+                if ident == "exclude" {
+                    let _: syn::Token![=] = input.parse()?;
+                    if input.peek(syn::token::Bracket) {
+                        let content;
+                        
+                        let _ = syn::bracketed!(content in input);
+                        while let Ok(val) = content.parse::<LitStr>() {
+                            exclude.push(val.value());
+
+                            content.parse::<syn::Token![,]>();
+                        }
+        
+                    } else {
+                        let val = input.parse::<LitStr>()?;
+                        exclude.push(val.value())
+                    }                     
+                }
+            }
+        }
+
+        Ok(AvroInput {
+            schema:  path.value(),
+            exclude
+        }) 
+        
+    
+    }
+}
+
+
+impl AvroInput {
+
+pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
     
     match schema.clone() {
        
@@ -66,12 +113,12 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
                 for field in record.fields {
                     let field_name =field.name.as_str();
-                    if parent == None && field_name == "eventName" {
+                    if parent == None && self.exclude.contains(&&field_name.to_string()) {
                         continue;
                     }
                     let field_name_sc =  Ident::new_raw(snake(field_name).as_str(), Span::call_site());
             
-                    match  get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
+                    match  self.get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
                         Ok(field_type) => 
                         {
                             match Field::parse_named.parse2(
@@ -111,7 +158,7 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
             let nullable = s.is_nullable() ;//.variants().iter().any(|&x| x == apache_avro::Schema::Null );
             let variants = s.variants().iter().filter(|&x| *x != apache_avro::Schema::Null  ).collect::<Vec<&Schema>>();
             if variants.len() == 1 {
-                let name =  get_type(variants.first().unwrap(),parent, items)?;
+                let name =  self.get_type(variants.first().unwrap(),parent, items)?;
                return if nullable {
                     let t = syn::parse2::<Type>(name)?;
                     Ok(quote! { Option<#t>})
@@ -157,7 +204,7 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
                     Schema::String => quote! { String(String )},
                     Schema::Array(schema) => {
                         
-                        let ident = parse2::<Ident>(get_type(schema, parent, items)?)?;
+                        let ident = parse2::<Ident>(self.get_type(schema, parent, items)?)?;
                         quote! { Array(#ident)}
                     },
                     Schema::Map(_) => todo!(),
@@ -204,14 +251,14 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
         apache_avro::Schema::Long => Ok(quote! { i64 }),
         apache_avro::Schema::String => Ok(quote! { String }),
         apache_avro::Schema::Map(m) => {
-            let t = get_type(m.as_ref(), parent, items)?;
+            let t = self.get_type(m.as_ref(), parent, items)?;
 
             return Ok(quote! {  std::collection::HashMap<String, #t> })
         },
         apache_avro::Schema::Null => Ok(quote! { None }),
         apache_avro::Schema::Double =>Ok(quote! { f32}),
         apache_avro::Schema::Array(a) => {
-            let t = get_type(a.as_ref(), parent, items)?;
+            let t = self.get_type(a.as_ref(), parent, items)?;
             let t = syn::parse2::<Type>(t)?;
             Ok(quote! { Vec<#t> })
         },
@@ -221,6 +268,7 @@ fn get_type(schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, 
     }
 }
 
+}
 
 #[proc_macro]
 pub fn load_schema(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -232,16 +280,16 @@ pub fn load_schema(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_attribute]
 pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut item_mod = parse_macro_input!(input as syn::ItemMod);
-    let p = parse_macro_input!(args as syn::LitStr);
+ //   let p = parse_macro_input!(args as syn::LitStr);
+    let p = parse_macro_input!(args as AvroInput);
     
-  
     if let Some((b,  mut items)) = item_mod.content {
         let uses = quote! {
             use serde::{Deserialize, Serialize};
          };
          items.push(Item::Verbatim(uses));
-
-        for entry in  glob::glob(p.value().as_str()).expect("INVALID PATTERN") {
+         //let p = p.value().as_str()
+        for entry in  glob::glob(p.schema.as_str()).expect("INVALID PATTERN") {
            let root = match entry {
                 Ok(path) => {
                    let file_name = path.file_stem().unwrap();
@@ -257,7 +305,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                     let mut file = fs::File::open(path.clone()).unwrap();
                     let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
                     
-                    match get_type(&schema, None, &mut mod_items) {
+                    match p.get_type(&schema, None, &mut mod_items) {
                         Ok(root) => {
                             
                             module.content = Some((b, mod_items));

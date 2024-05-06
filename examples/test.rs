@@ -1,9 +1,8 @@
 use apache_avro::AvroSchema;
-use avro_macro::{schema, auto_enum};
+use avro_macro::{schema};
 
 
-#[schema("*.avro")]
-#[auto_enum()]
+#[schema("*.avro", exclude = ["eventName"] )]
 mod Test {
 
   
@@ -15,7 +14,7 @@ pub fn process(a: Test::WishBuyClick){
 }*/
 fn main() {
     
-    let schema =Test::foo::CountryCode::get_schema();
+    let schema = Test::WishlistWishRemoved::get_schema();
     
     println!("{}", schema.canonical_form());
   //  process(Blah::Hmm{ test: todo!(), foo: todo!() });
