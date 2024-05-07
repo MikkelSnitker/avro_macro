@@ -100,17 +100,21 @@ impl Parse for AvroInput {
 impl AvroInput {
 
 pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
+    let namespace = schema.namespace();
     
     match schema.clone() {
        
         apache_avro::Schema::Record(record) => {
             let name = Ident::new(record.name.name.as_str(), Span::call_site());
-          
+            
             let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
                 #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                #[avro(namespace = #namespace )]
                 pub struct #name {}
             })?;
+
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
+
                 for field in record.fields {
                     let field_name =field.name.as_str();
                     if parent == None && self.exclude.contains(&&field_name.to_string()) {
