@@ -100,6 +100,7 @@ impl Parse for AvroInput {
 impl AvroInput {
 
 pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro::Schema>, items: &mut Vec<Item>) -> std::result::Result<TokenStream,Error> {
+    let schema_str = schema.canonical_form();
     let namespace = schema.namespace();
     
     match schema.clone() {
@@ -116,18 +117,23 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
 
                 for field in record.fields {
+
+                    let default_value = match field.default {
+                        Some(value) => Some("\"FOO\""),
+                        None => None
+                    };
                     let field_name =field.name.as_str();
                     if parent == None && self.exclude.contains(&&field_name.to_string()) {
                         continue;
                     }
                     let field_name_sc =  Ident::new_raw(snake(field_name).as_str(), Span::call_site());
-            
+                  
                     match  self.get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
                         Ok(field_type) => 
                         {
                             match Field::parse_named.parse2(
                                 quote! {
-                               #[avro(rename = #field_name )]
+                               #[avro(rename = #field_name)]
                                #[serde(rename = #field_name)]
                                pub #field_name_sc: #field_type
                             }) {
@@ -156,6 +162,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
 
         },
         apache_avro::Schema::Union(s) => {
+         
             let schema = apache_avro::Schema::Union(s.clone());
             let schema = schema.canonical_form();
 
@@ -170,7 +177,6 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     Ok(name)
                 }
             }
-            
             
             let name = match parent {
                 Some(parent) => Ident::new(capitalize(parent.name().unwrap().name.clone()).as_str(), Span::call_site()),
@@ -188,6 +194,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             let imp = syn::parse2::<ItemImpl>(quote! {
                 impl apache_avro::schema::derive::AvroSchemaComponent for #name {
                     fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
+                        panic!("FOO");
                         apache_avro::Schema::parse_str(#schema).unwrap()
                     }
                 }
