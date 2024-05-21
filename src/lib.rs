@@ -113,14 +113,14 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                 syn::parse2::<ItemStruct>(quote! { 
                     #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                     pub struct #name {}
-                })?;
+                })
             } else {
                 syn::parse2::<ItemStruct>(quote! { 
                     #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                     #[avro(namespace = #namespace )]
                     pub struct #name {}
-                })?;
-            };
+                })
+            }?;
 
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
 
