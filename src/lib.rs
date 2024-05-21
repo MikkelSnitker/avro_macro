@@ -108,11 +108,19 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
         apache_avro::Schema::Record(record) => {
             let name = Ident::new(record.name.name.as_str(), Span::call_site());
             
-            let mut item_struct =  syn::parse2::<ItemStruct>(quote! { 
-                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
-                #[avro(namespace = #namespace )]
-                pub struct #name {}
-            })?;
+            
+            let mut item_struct =  if namespace.is_none() {
+                syn::parse2::<ItemStruct>(quote! { 
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                    pub struct #name {}
+                })?;
+            } else {
+                syn::parse2::<ItemStruct>(quote! { 
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                    #[avro(namespace = #namespace )]
+                    pub struct #name {}
+                })?;
+            };
 
             if let syn::Fields::Named(ref mut fields) = item_struct.fields  {
 

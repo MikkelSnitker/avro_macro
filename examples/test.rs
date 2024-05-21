@@ -5,7 +5,7 @@ use avro_macro::{schema};
 use base64::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[schema("*.avro", exclude = ["eventName"] )]
+#[avro_macro::schema("gowish_schema/wishlist_service_v1/ProductMatchBuyClick.avro", exclude = ["eventName"])]
 mod Test {
 
   
@@ -40,7 +40,7 @@ struct Payload {
 }
 
 fn insertAvroSchema(){
-  let user_created_schema = Test::UserCreated::get_schema();
+ /*let user_created_schema = Test::UserCreated::get_schema();
   let user_updated_schema =Test::UserUpdated::get_schema();
   
   let client = reqwest::blocking::Client::new();
@@ -61,6 +61,7 @@ let body = serde_json::to_string(&Payload {
 let mut buf: String = String::new();
   res.read_to_string(&mut buf);
   println!("{}", buf);
+   */ 
 }
 
 #[derive(Serialize, Deserialize, AvroSchema)]
@@ -105,6 +106,7 @@ fn main() {
     }
   };
 
+  
   let a = apache_avro::to_avro_datum(&schema, apache_avro::to_value(data).unwrap());
 
   println!("{}",  schema.canonical_form());
