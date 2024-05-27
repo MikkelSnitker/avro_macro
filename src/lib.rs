@@ -136,8 +136,6 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     match  self.get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
                         Ok(field_type) => 
                         {
-                            
-                          
                             match Field::parse_named.parse2(
                                 quote! {
                                #[avro(rename = #field_name)]
