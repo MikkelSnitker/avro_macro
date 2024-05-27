@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 
 //use proc_macro::{Span, TokenStream};
@@ -126,10 +127,6 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
 
                 for field in record.fields {
 
-                    let default_value = match field.default {
-                        Some(value) => Some("\"FOO\""),
-                        None => None
-                    };
                     let field_name =field.name.as_str();
                     if parent == None && self.exclude.contains(&&field_name.to_string()) {
                         continue;
@@ -139,13 +136,19 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     match  self.get_type(&field.schema, Some(&apache_avro::Schema::Ref {name: Name::new(field_name)? } ), items) {
                         Ok(field_type) => 
                         {
+                            
+                          
                             match Field::parse_named.parse2(
                                 quote! {
                                #[avro(rename = #field_name)]
                                #[serde(rename = #field_name)]
                                pub #field_name_sc: #field_type
                             }) {
-                                Ok(field) => fields.named.push(field),
+                                Ok(field) => {
+                                    if  field_type.to_string() != (quote! { None }).to_string() {
+                                        fields.named.push(field)   
+                                    }
+                                },
                                 Err(e) => {
                                     return Err(e.into());
                                 }
@@ -154,6 +157,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                         },
 
                         Err(e) => {
+                            panic!("ERRR {:?}", e);
                             return Err(e);
                         }
                     };
