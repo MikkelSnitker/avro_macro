@@ -193,7 +193,8 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             };
 
             let mut item_enum: ItemEnum = syn::parse2::<ItemEnum>(quote! { 
-                #[derive(Clone,  serde::Serialize, /* serde::Deserialize, */ PartialEq, Debug)]
+                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+                #[serde(untagged)]
                 pub enum #name {}
              
             })?;
@@ -202,13 +203,12 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             let imp = syn::parse2::<ItemImpl>(quote! {
                 impl apache_avro::schema::derive::AvroSchemaComponent for #name {
                     fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
-                 //       panic!("FOO");
                         apache_avro::Schema::parse_str(#schema).unwrap()
                     }
                 }
             })?;
             
-
+/*
             let de_serailize_imp = syn::parse2::<ItemImpl>(quote! {
                
                 impl<'de> serde::Deserialize<'de> for #name {
@@ -222,13 +222,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     }
                 }
             })?;
-
-            /*
-            
-            
-            */
-            
-        
+         */
             for variant in variants {
                 let test = match variant {
                     Schema::Null => quote! { Null },
@@ -272,7 +266,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
            
             items.push(Item::Impl(imp));
             items.push(Item::Enum(item_enum));
-            items.push(Item::Impl(de_serailize_imp));
+      //      items.push(Item::Impl(de_serailize_imp));
         
             
             if nullable {

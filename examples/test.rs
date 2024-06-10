@@ -4,8 +4,9 @@ use std::{
 
 use apache_avro::{schema, AvroSchema};
 use avro_macro::{schema, TaggedEnum};
-use base64::prelude::*;
+//use base64::prelude::*;
 use serde::{de::{self, value}, ser::{self, SerializeSeq, SerializeTupleVariant}, Deserialize, Serialize};
+use Test::test::Photos;
 
 #[avro_macro::schema("./Test.avro")]
 mod Test {}
@@ -52,108 +53,47 @@ impl apache_avro::schema::derive::AvroSchemaComponent for Foo {
 
     }
 }
-
-#[derive(Serialize, Deserialize, Debug, AvroSchema)]
-struct Test1 {
-    age: u8,
-    hmm: Foo,
-}
-
-#[derive(Serialize, AvroSchema)]
-struct Test2 {
-    lines: Vec<String>
-}
-
-#[derive(Debug)]
-#[derive(Deserialize)]
-//#[derive(AvroSchema)]
-#[derive(Serialize)]
-enum EnumTest1 {
-    string(String),
-    int(i8),
-    array(Vec<u8>),
-    
-
-}
-
-fn main1() {
-
-    let schema = apache_avro::schema::Schema::parse_str(r#"["string","int", {"type": "array", "items": "int"}]"#).unwrap();
-
-    println!("{:?}", schema);
-    let a =apache_avro::types::Value::Union(1,Box::new(apache_avro::types::Value::Int(1)));
-    let a =apache_avro::types::Value::Union(0,Box::new(apache_avro::types::Value::String("Hello World!".into())));
-    let a =apache_avro::types::Value::Union(2,Box::new(apache_avro::types::Value::Array(vec![apache_avro::types::Value::Int(13)]) ));
-    let a = apache_avro::to_value( EnumTest1::array(vec![12])).unwrap();
-
-    println!("{:?}", &a);
-    let mut b = apache_avro::to_avro_datum(&schema, a).unwrap();
-    let a = apache_avro::from_avro_datum(&schema, &mut b.as_slice(), None).unwrap();
-    let b = apache_avro::from_value::<EnumTest1>(&a).unwrap();
-    println!("{:?}", &a);
-    
-    return;
-
-    
-    let schema = Test1::get_schema();
-
-    println!("Schema\n{}", schema.canonical_form());
-
-    let obj = Test1 {
-        age: 1,
-        hmm: Foo::Array(vec!["TEST".to_string()]),
-      //  hmm: Foo::String("TEST".to_string())
-  //  hmm: Foo::Int(123)
-};
-
-    println!("obj: {:?}", obj);
-    
-    let obj_json = serde_json::to_string(&obj).unwrap();
-    println!("obj_json: {:?}", obj_json);
-    let obj = serde_json::from_str::<Test1>(&obj_json).unwrap();
-    println!("obj: {:?}", obj);
-  //  let avro_value = apache_avro::to_value(obj).unwrap();
-    /*
-  
-    
-    
-  //  
-    
-     */
-
-    let avro_value = apache_avro::to_value(obj).unwrap();
-    println!("avro_value: {:?}", avro_value);
 /*
-    let avro_value = apache_avro::types::Value::Record(vec![
-        ("age".into(), apache_avro::types::Value::Int(4)),
-        ("hmm".into(), apache_avro::types::Value::Union(0, Box::new(apache_avro::types::Value::String("fobar".into())))),
-    ]);
- 
-    println!("avro_value: {:?}", avro_value);
- */
-    let obj_avro = apache_avro::to_avro_datum(&schema, avro_value).unwrap();
-    println!("obj_avro: {:?}", obj_avro);
+impl<'de> serde::Deserialize<'de> for Photos {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D:  serde::Deserializer<'de>,
+    {
+        
+      //  deserializer.deserialize_enum("Photos", &["String", "Array"], visitor)
+        let value = serde_json::Value::deserialize(deserializer)?;
 
-    //let avro_value = apache_avro::to_value(obj_avro).unwrap();
+        Ok(Self::String("Hello".to_string()))
+    }
+} */
 
-    let obj_value = apache_avro::from_avro_datum(&schema, &mut obj_avro.as_slice(), None).unwrap();
-    println!("obj_value: {:?}", obj_value);
 
-    let obj = apache_avro::from_value::<Test1>(&obj_value).unwrap();
-    println!("obj: {:?}", obj);
-    
-   
-    /*
-    let a = serde_json::from_str::<Test::WishCreated>(json);
-    println!("{:?}", a);
-    let b = a.unwrap().photos;
-     */
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum TestEnum {
+    String(String),
+    Array(Vec<String>)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 
+struct TestStruct {
+    data: TestEnum
+}
 
 
 fn main() {
+    /*
+    let json = r#"
+        {
+            "data": ["Hello World"]
+        }
+    "#;
+
+    let a = serde_json::from_str::<TestStruct>(json).unwrap();
+    println!("TEST {:?}", a);*/
+
     let json = r#"
     {
         "title": "Få Street food derhjemme af Katrine Klinken som Hæftet bog på dansk - 9788740058437",
@@ -161,9 +101,7 @@ fn main() {
         "description": null,
         "index": -14,
         "price": 0,
-        "photos": [
-            "https://s.onskeskyen.dk/uploads/images/wish/c2/f9/7a/f4/9b/ba/c2f97af49bba.jpeg"
-        ],
+        "photos": "https://s.onskeskyen.dk/uploads/images/wish/c2/f9/7a/f4/9b/ba/c2f97af49bba.jpeg",
         "id": "v4et1tBnoqLOfDbA",
         "userId": "wV7RDQipYLf7a7NI",
         "wishlistId": "PDHZnhF8KRouKzWa",
@@ -183,7 +121,7 @@ fn main() {
     "#;
 
     let data = serde_json::from_str::<Test::WishCreated>(json).unwrap();
-
+    
     let schema = Test::WishCreated::get_schema();
     /*let data = Test::WishCreated {
         created_at: "2023".into(),
@@ -201,6 +139,7 @@ fn main() {
         user_id: "213".into(),
         wishlist_id: "123".into(),
     };*/
+    println!("Schema {:?}", &schema.canonical_form());
 
     let data = apache_avro::to_value(data).unwrap();
     let mut data = apache_avro::to_avro_datum(&schema, data).unwrap();
