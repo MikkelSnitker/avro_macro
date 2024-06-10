@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-apache-avro = {version = "0.16.0", features = ["derive"] }
+#apache-avro = { version = "0.16.0", features = ["derive"] }
+apache-avro = { path="/Users/mikkel/Development/avro/lang/rust/avro", features = ["derive"] }
 base64 = "0.22.1"
 derive = "1.0.0"
 glob = "0.3.1"

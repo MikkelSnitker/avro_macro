@@ -1,8 +1,7 @@
+
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
-
-//use proc_macro::{Span, TokenStream};
 
 use apache_avro::schema::Name;
 use apache_avro::Schema;
@@ -194,39 +193,56 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             };
 
             let mut item_enum: ItemEnum = syn::parse2::<ItemEnum>(quote! { 
-                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+                #[derive(Clone,  serde::Serialize, /* serde::Deserialize, */ PartialEq, Debug)]
                 pub enum #name {}
+             
             })?;
-           
-         
-           
-            //apache_avro::schema::derive::AvroSchemaComponent
+
+            
             let imp = syn::parse2::<ItemImpl>(quote! {
                 impl apache_avro::schema::derive::AvroSchemaComponent for #name {
                     fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
-                        panic!("FOO");
+                 //       panic!("FOO");
                         apache_avro::Schema::parse_str(#schema).unwrap()
                     }
                 }
             })?;
             
+
+            let de_serailize_imp = syn::parse2::<ItemImpl>(quote! {
+               
+                impl<'de> serde::Deserialize<'de> for #name {
+                    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                    where
+                        D:  serde::Deserializer<'de>,
+                    {
+                        let value = serde_json::Value::deserialize(deserializer)?;
+
+                        Ok(Self::String("Hello".to_string()))
+                    }
+                }
+            })?;
+
+            /*
+            
+            
+            */
             
         
-
             for variant in variants {
                 let test = match variant {
                     Schema::Null => quote! { Null },
                     Schema::Boolean => quote! { Boolean(bool) },
                     Schema::Int => quote! { Int(i32) },
-                    Schema::Long => quote! { Int(i64) },
+                    Schema::Long  => quote! { Int(i64) },
                     Schema::Float => quote! { Float(i32) },
                     Schema::Double => quote! { Float(i64) },
                     Schema::Bytes => todo!(),
                     Schema::String => quote! { String(String )},
                     Schema::Array(schema) => {
                         
-                        let ident = parse2::<Ident>(self.get_type(schema, parent, items)?)?;
-                        quote! { Array(#ident)}
+                        let ident = parse2::<Ident>(self.get_type(&schema.items, parent, items)?)?;
+                        quote! { Array(Vec<#ident>)}
                     },
                     Schema::Map(_) => todo!(),
                     Schema::Union(_) => todo!(),
@@ -244,6 +260,9 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     Schema::LocalTimestampMicros => todo!(),
                     Schema::Duration => todo!(),
                     Schema::Ref { name } => todo!(),
+                    Schema::BigDecimal => todo!(),
+                    Schema::TimestampNanos => todo!(),
+                    Schema::LocalTimestampNanos => todo!(),
                 };
                 let v = syn::parse2::<Variant>(test)?;
                 item_enum.variants.push(v);
@@ -251,9 +270,9 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
           
             let name = item_enum.ident.clone();
            
-               items.push(Item::Impl(imp));
-                items.push(Item::Enum(item_enum));
-            
+            items.push(Item::Impl(imp));
+            items.push(Item::Enum(item_enum));
+            items.push(Item::Impl(de_serailize_imp));
         
             
             if nullable {
@@ -264,6 +283,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             
     
         },
+
         apache_avro::Schema::Int => Ok(quote! { i64 }),
         apache_avro::Schema::Boolean => Ok(quote! { bool }),
         apache_avro::Schema::Decimal(_) => Ok(quote! { f64 }),
@@ -272,14 +292,16 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
         apache_avro::Schema::Long => Ok(quote! { i64 }),
         apache_avro::Schema::String => Ok(quote! { String }),
         apache_avro::Schema::Map(m) => {
-            let t = self.get_type(m.as_ref(), parent, items)?;
+            
+            let t = self.get_type(m.types.as_ref(), parent, items)?;
 
             return Ok(quote! {  std::collection::HashMap<String, #t> })
         },
         apache_avro::Schema::Null => Ok(quote! { None }),
         apache_avro::Schema::Double =>Ok(quote! { f32}),
         apache_avro::Schema::Array(a) => {
-            let t = self.get_type(a.as_ref(), parent, items)?;
+            
+            let t = self.get_type(a.items.as_ref(), parent, items)?;
             let t = syn::parse2::<Type>(t)?;
             Ok(quote! { Vec<#t> })
         },
@@ -295,6 +317,27 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
 pub fn load_schema(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let module = quote! { pub mod Schema {} };
     schema(item, module.into())
+}
+
+
+
+#[proc_macro_attribute]
+pub fn foobar(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let mut item_mod = parse_macro_input!(input as syn::ItemEnum);
+
+    let name = &item_mod.ident;
+
+    quote! {
+        #item_mod
+
+        impl #name {
+            fn foo() {
+                println!("FOOBAR")
+            }
+
+        }
+    }
+    .into()
 }
 
 
@@ -438,4 +481,70 @@ pub fn auto_enum(args: proc_macro::TokenStream, input: proc_macro::TokenStream) 
     }
     .into();
    
+}
+
+
+#[proc_macro_derive(TaggedEnum, attributes(tag))]
+pub fn register_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    let name = &input.ident;
+    
+    let attrs = &input.attrs;
+
+    
+
+    let a = quote! {
+        match tag {}
+    };
+
+    let mut a = syn::parse2::<syn::ExprMatch>(a).unwrap();
+    
+
+
+    if let syn::Data::Enum(e)  = &input.data {
+        for var in &e.variants {
+            
+            let ident = &var.ident;
+            for  a in &var.fields {
+                println!("{:?}", a);
+            }
+            let event_type = ident.to_string();
+            println!("{:?}", &var);
+            a.arms.push(syn::parse2::<syn::Arm>(quote! { #event_type => {
+               let value = serde_json::from_str::<#ident>(value)?; 
+            Ok(#name :: #ident (value))
+             
+            }  }).unwrap());
+
+          /*  println!("Variant {}", var.ident.to_string());
+            if let syn::Fields::Unnamed(f) = &var.fields {
+                if let Some(field) = f.unnamed.first() {
+                 println!("{:?}",field.ty);
+                }
+            };
+            let fields = &var.fields;
+            for field in fields {
+                println!("Field {:?}", &field.ident);
+            }
+             */
+        }
+    };
+
+    a.arms.push(syn::parse2::<syn::Arm>(quote! { _ => panic!("Unsupported") }).unwrap());
+   
+    for attr in attrs {
+        //if attr.path.is_ident("attach") {
+        //    parse_attach_attribute(&attr);
+       // }
+    }
+ //   println!("{:#?}", input);
+
+    proc_macro::TokenStream::from(quote! {
+        impl #name {
+            fn from_str(tag: &str, value: &str) ->  Result<Self, serde_json::Error> {
+               #a
+            }
+        }
+    })
+
 }
