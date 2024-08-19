@@ -1,0 +1,3 @@
+[submodule "gowish_schema"]
+	path = gowish_schema
+	url = https://github.com/MikkelSnitker/gowish_schema.git
