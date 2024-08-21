@@ -445,8 +445,8 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                         match serde_json::from_str::<$from>(value) {
                             Ok(val) => Ok(Self::$variant(val)),
                             Err(e) => {
-                                eprintln!("Error: {} {:?} {}", tag, e, value.to_string() );
-                                Err(e)}
+                                Err(e)
+                            }
                         }   
                     }, ) *
 
