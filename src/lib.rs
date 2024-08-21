@@ -11,7 +11,10 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Enum, Pub};
-use syn::{parse2, parse_macro_input, Field, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Type, UseTree, Variant};
+use syn::{parse2, parse_macro_input, Field, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Token, Type, UseTree, Variant};
+
+
+
 
 
 #[derive(Debug, Clone)]
@@ -113,12 +116,12 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             
             let mut item_struct =  if namespace.is_none() {
                 syn::parse2::<ItemStruct>(quote! { 
-                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema, Default )]
                     pub struct #name {}
                 })
             } else {
                 syn::parse2::<ItemStruct>(quote! { 
-                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema, Default )]
                     #[avro(namespace = #namespace )]
                     pub struct #name {}
                 })
@@ -346,6 +349,8 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     if let Some((b,  mut items)) = item_mod.content {
         let uses = quote! {
             use serde::{Deserialize, Serialize};
+            use serde::de::Error;
+            
          };
          let mut variants: Vec<Variant> = vec![];
        
@@ -401,31 +406,71 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                 }
             }
         }
-
+        
         items.push(Item::Verbatim(uses));
-         let mut e = ItemEnum {
-            attrs: vec![],
-            variants: Punctuated::new(),
-            vis: syn::Visibility::Public(Pub::default()),
-            brace_token: Brace::default(),
-            ident: Ident::new("Events", Span::call_site()),
-            generics: Generics::default(),
-            enum_token: Enum::default()
-            
-        };
+        items.push(Item::Verbatim(quote! {
+        macro_rules! create_events {
+            // Match the enum declaration and capture its name and variants
+            ($enum_name:ident { $($variant:ident($from:ty)),* $(,)? }) => {
+
+            #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+            pub enum $enum_name {
+            $(
+                $variant($from),
+                
+             )*
+            }
+
+        impl std::fmt::Display for  $enum_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{:?}", self)
+            }
+        }
+
+        impl $enum_name {
+
+            pub fn event_name(&self) -> &'static str {
+                match self {
+                    $($enum_name::$variant(_) => stringify!($variant)),*
+                }
+            }
+
+            pub fn event_names() -> &'static[&'static str] {
+                &[$(stringify!($variant), )*]
+            }
+
+            pub fn from_str(tag: &str, value: &str) -> Result<Self,serde_json::Error> {
+                match tag {
+                    $(stringify!($variant) => {
+                        match serde_json::from_str::<$from>(value) {
+                            Ok(val) => Ok(Self::$variant(val)),
+                            Err(e) => {
+                                eprintln!("Error: {} {:?} {}", tag, e, value.to_string() );
+                                Err(e)}
+                        }   
+                    }, ) *
+
+                    _ => Err(serde_json::Error::custom(format!("Unsupported tag \"{}\"", tag)))
+                }
+            }
+
+        }
+    };
+}
+
+        }));
+
+        
+        let mut types = Punctuated::<Variant, Token![,]>::new();
         for variant in variants {
-            e.variants.push(variant)
+            types.push(variant)
         }
         
-        
-        items.push(Item::Enum(e));
+      
 
-        items.push(Item::Verbatim(quote! {
-            pub fn from_str(tag: &str, value: &str) -> Result<Events,serde_json::Error> {
-                todo!()
-            }
-         }));
- 
+        let types_token_stream = types.to_token_stream();
+        items.push(Item::Verbatim( quote! { create_events!(Events { #types_token_stream }); }));
+
         item_mod.content = Some((b, items));
     }
 
