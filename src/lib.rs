@@ -116,12 +116,12 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             
             let mut item_struct =  if namespace.is_none() {
                 syn::parse2::<ItemStruct>(quote! { 
-                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema, Default )]
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                     pub struct #name {}
                 })
             } else {
                 syn::parse2::<ItemStruct>(quote! { 
-                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema, Default )]
+                    #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug, apache_avro::AvroSchema )]
                     #[avro(namespace = #namespace )]
                     pub struct #name {}
                 })
