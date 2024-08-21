@@ -9,7 +9,9 @@ use proc_macro::{LexError, TokenTree};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
-use syn::{parse2, parse_macro_input, Field, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Type, UseTree, Variant};
+use syn::punctuated::Punctuated;
+use syn::token::{Brace, Enum, Pub};
+use syn::{parse2, parse_macro_input, Field, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Type, UseTree, Variant};
 
 
 #[derive(Debug, Clone)]
@@ -345,7 +347,9 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
         let uses = quote! {
             use serde::{Deserialize, Serialize};
          };
-         items.push(Item::Verbatim(uses));
+         let mut variants: Vec<Variant> = vec![];
+       
+
          //let p = p.value().as_str()
         for entry in  glob::glob(p.schema.as_str()).expect("INVALID PATTERN") {
            let root = match entry {
@@ -361,6 +365,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                     let mut mod_items: Vec<syn::Item> = Vec::new();
 
                     let mut file = fs::File::open(path.clone()).unwrap();
+                    
                     let schema = apache_avro::Schema::parse_reader(&mut file).unwrap();
                     
                     match p.get_type(&schema, None, &mut mod_items) {
@@ -369,6 +374,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                             module.content = Some((b, mod_items));
                             items.push(Item::Mod(module));
                            
+                           variants.push(syn::parse2::<Variant>(quote! {  #root(#root) }).unwrap());
                            if let Ok(ident) = syn::parse2::<Ident>(root){
                              Some( quote! {  #name::#ident } )
                            } else {
@@ -395,6 +401,30 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
                 }
             }
         }
+
+        items.push(Item::Verbatim(uses));
+         let mut e = ItemEnum {
+            attrs: vec![],
+            variants: Punctuated::new(),
+            vis: syn::Visibility::Public(Pub::default()),
+            brace_token: Brace::default(),
+            ident: Ident::new("Events", Span::call_site()),
+            generics: Generics::default(),
+            enum_token: Enum::default()
+            
+        };
+        for variant in variants {
+            e.variants.push(variant)
+        }
+        
+        
+        items.push(Item::Enum(e));
+
+        items.push(Item::Verbatim(quote! {
+            pub fn from_str(tag: &str, value: &str) -> Result<Events,serde_json::Error> {
+                todo!()
+            }
+         }));
  
         item_mod.content = Some((b, items));
     }
@@ -542,3 +572,5 @@ pub fn register_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream
     })
 
 }
+
+

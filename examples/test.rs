@@ -7,10 +7,11 @@ use avro_macro::{schema, TaggedEnum};
 use serde::{de::{self, value}, ser::{self, SerializeSeq, SerializeTupleVariant}, Deserialize, Serialize};
 
 
-#[avro_macro::schema("./gowish_schema/base/*.avro")]
+#[avro_macro::schema("./gowish_schema/base/U*.avro")]
 mod Test {}
 
 
 fn main() {
-  
+   
+  println!("OK");
 }
