@@ -455,7 +455,22 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
             }
 
         }
+
+        impl apache_avro::schema::derive::AvroSchemaComponent for $enum_name {
+            fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
+               let schemas = vec![ $($variant::get_schema_in_ctxt(named_schemas, enclosing_namespace)),* ] ;
+
+               apache_avro::schema::Schema::Union(
+                apache_avro::schema::UnionSchema::new(named_schemas.keys().map(|name|{
+                    apache_avro::schema::Schema::Ref { name: name.clone() }
+
+                }).collect::<Vec<_>>()).unwrap()
+               )
+            }
+        }
     };
+
+    
 }
 
         }));
