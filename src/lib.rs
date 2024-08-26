@@ -483,8 +483,9 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
       
 
         let types_token_stream = types.to_token_stream();
-        items.push(Item::Verbatim( quote! { 
-            use crate::create_events;
+        items.push(Item::Verbatim( quote! {
+            use avro_macro::create_events; 
+
             create_events!(Events { #types_token_stream }); }));
 
         item_mod.content = Some((b, items));
