@@ -11,7 +11,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, Parser};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Enum, Pub};
-use syn::{parse2, parse_macro_input, Field, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Token, Type, UseTree, Variant};
+use syn::{parse2, parse_macro_input, Field, Fields, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Token, Type, UseTree, Variant};
 
 
 
@@ -343,7 +343,6 @@ pub fn foobar(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
 #[proc_macro_attribute]
 pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut item_mod = parse_macro_input!(input as syn::ItemMod);
- //   let p = parse_macro_input!(args as syn::LitStr);
     let p = parse_macro_input!(args as AvroInput);
     
     if let Some((b,  mut items)) = item_mod.content {
@@ -408,7 +407,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
         }
         
         items.push(Item::Verbatim(uses));
-        items.push(Item::Verbatim(quote! {
+     /*   items.push(Item::Verbatim(quote! {
         macro_rules! create_events {
             // Match the enum declaration and capture its name and variants
             ($enum_name:ident { $($variant:ident($from:ty)),* $(,)? }) => {
@@ -475,7 +474,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
 
         }));
 
-        
+        */
         let mut types = Punctuated::<Variant, Token![,]>::new();
         for variant in variants {
             types.push(variant)
@@ -484,7 +483,9 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
       
 
         let types_token_stream = types.to_token_stream();
-        items.push(Item::Verbatim( quote! { create_events!(Events { #types_token_stream }); }));
+        items.push(Item::Verbatim( quote! { 
+            use crate::create_events;
+            create_events!(Events { #types_token_stream }); }));
 
         item_mod.content = Some((b, items));
     }
@@ -526,46 +527,6 @@ fn capitalize(input: impl Into<String>) -> String {
     }
 }
 
-
-#[proc_macro_attribute]
-pub fn auto_enum(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    todo!();
-
-    let mut item_mod = parse_macro_input!(input as ItemMod);
-    if let Some((brace,  mut items)) = item_mod.content {
-            if !items.is_empty() {
-            let mut auto_enum = parse2::<ItemEnum>(quote! { pub enum Events {} }).unwrap();       
-            
-            for item in &items {
-               if let Item::Use(m) = item {
-                let a = match &m.tree {
-                    UseTree::Path(p) =>  p.ident.to_string(),
-                    _ => "BLAJ".to_string()
-                };
-                println!("{:?}", a);
-               }
-                if let Item::Struct(s) = item {
-                    
-                    panic!("{:?}", s);
-                    let name = &s.ident;
-                    let v = syn::parse2::<Variant>(quote! {  #name(#name) }).unwrap();
-                    auto_enum.variants.push(v);
-                }
-            }
-            items.push(Item::Enum(auto_enum));
-            item_mod.content = Some((brace, items));
-        } else {
-            panic!("EMPTY")
-        }
-    } else {
-        panic!("HMM")
-    }
-    return quote! {
-        #item_mod
-    }
-    .into();
-   
-}
 
 
 #[proc_macro_derive(TaggedEnum, attributes(tag))]
@@ -634,3 +595,116 @@ pub fn register_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 }
 
 
+
+#[proc_macro]
+pub fn create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    //let test = parse_macro_input!(item  as syn::ItemEnum);
+    
+    let input: proc_macro2::TokenStream = input.into();
+
+    let event_enum = syn::parse2::<ItemEnum>(quote! { 
+     
+
+        #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+        pub enum #input
+    }).unwrap();
+
+
+    let name = &event_enum.ident;
+    let variants = &event_enum.variants;
+
+    let variant_names = variants.iter().map(|v| {
+        let name = &v.ident;
+        quote! { stringify!(#name) }
+    });
+
+    let variant_name = variants.iter().map(|v| {
+        let variant = &v.ident;
+        quote! { #name::#variant(_) => stringify!(#variant) }
+    });
+
+    let parse = variants.iter().map(|v| {
+        let variant = &v.ident;
+        
+        let field_types = match &v.fields {
+            Fields::Named(fields) => {
+                fields.named.iter().map(|f| &f.ty).collect::<Vec<_>>()
+            },
+            Fields::Unnamed(fields) => {
+                fields.unnamed.iter().map(|f| &f.ty).collect::<Vec<_>>()
+            }, 
+            Fields::Unit => vec![] ,
+        };
+
+        let variant_type = field_types.first().map(|ty| quote! { #ty} ).unwrap_or(quote! {});
+        
+        quote! { stringify!(#variant) => {
+            match serde_json::from_str::<#variant_type>(value) {
+                Ok(val) => Ok(Self::#variant(val)),
+                Err(e) => {
+                    Err(e)
+                }
+            } 
+        } }
+    });
+    
+    let variant_schemas = variants.iter().map(|v| {
+        let variant = &v.ident;
+        
+        let field_types = match &v.fields {
+            Fields::Named(fields) => {
+                fields.named.iter().map(|f| &f.ty).collect::<Vec<_>>()
+            },
+            Fields::Unnamed(fields) => {
+                fields.unnamed.iter().map(|f| &f.ty).collect::<Vec<_>>()
+            }, 
+            Fields::Unit => vec![] ,
+        };
+
+        let variant_type = field_types.first().map(|ty| quote! { #ty} ).unwrap_or(quote! {});
+        
+        variant_type
+    });
+    proc_macro::TokenStream::from(quote!{
+      
+
+        #event_enum
+        impl std::fmt::Display for  #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{:?}", self)
+            }
+        }
+
+        impl #name {
+
+            pub fn event_names() -> &'static[&'static str] {
+                &[#(#variant_names),*]
+            }
+
+            pub fn event_name(&self) -> &'static str {
+                match self {
+                    #(#variant_name),*
+                }
+            }
+
+            pub fn from_str(tag: &str, value: &str) -> Result<Self,serde_json::Error> {
+                match tag {
+                    #(#parse) *,
+                    _ => Err(serde_json::Error::custom(format!("Unsupported tag \"{}\"", tag)))
+                }
+            }
+        }
+
+
+        impl apache_avro::schema::derive::AvroSchemaComponent for #name {
+            fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
+                let schemas = vec![ #(#variant_schemas::get_schema_in_ctxt(named_schemas, enclosing_namespace)),* ] ;
+                apache_avro::schema::Schema::Union(
+                    apache_avro::schema::UnionSchema::new(schemas.into_iter().map(|schema|{
+                        apache_avro::schema::Schema::Ref { name: schema.name().unwrap().clone() }
+                }).collect::<Vec<_>>()).unwrap()
+       )
+    }
+}
+    })
+}
