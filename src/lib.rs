@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-use apache_avro::schema::Name;
+use apache_avro::schema::{Name, UnionSchema};
 use apache_avro::Schema;
 use proc_macro::{LexError, TokenTree};
 use proc_macro2::{Span, TokenStream};
@@ -407,74 +407,7 @@ pub fn schema(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
         }
         
         items.push(Item::Verbatim(uses));
-     /*   items.push(Item::Verbatim(quote! {
-        macro_rules! create_events {
-            // Match the enum declaration and capture its name and variants
-            ($enum_name:ident { $($variant:ident($from:ty)),* $(,)? }) => {
-
-            #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-            pub enum $enum_name {
-            $(
-                $variant($from),
-                
-             )*
-            }
-
-        impl std::fmt::Display for  $enum_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, "{:?}", self)
-            }
-        }
-
-        impl $enum_name {
-
-            pub fn event_name(&self) -> &'static str {
-                match self {
-                    $($enum_name::$variant(_) => stringify!($variant)),*
-                }
-            }
-
-            pub fn event_names() -> &'static[&'static str] {
-                &[$(stringify!($variant), )*]
-            }
-
-            pub fn from_str(tag: &str, value: &str) -> Result<Self,serde_json::Error> {
-                match tag {
-                    $(stringify!($variant) => {
-                        match serde_json::from_str::<$from>(value) {
-                            Ok(val) => Ok(Self::$variant(val)),
-                            Err(e) => {
-                                Err(e)
-                            }
-                        }   
-                    }, ) *
-
-                    _ => Err(serde_json::Error::custom(format!("Unsupported tag \"{}\"", tag)))
-                }
-            }
-
-        }
-
-        impl apache_avro::schema::derive::AvroSchemaComponent for $enum_name {
-            fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
-               let schemas = vec![ $($variant::get_schema_in_ctxt(named_schemas, enclosing_namespace)),* ] ;
-
-               apache_avro::schema::Schema::Union(
-                apache_avro::schema::UnionSchema::new(named_schemas.keys().map(|name|{
-                    apache_avro::schema::Schema::Ref { name: name.clone() }
-
-                }).collect::<Vec<_>>()).unwrap()
-               )
-            }
-        }
-    };
-
-    
-}
-
-        }));
-
-        */
+  
         let mut types = Punctuated::<Variant, Token![,]>::new();
         for variant in variants {
             types.push(variant)
