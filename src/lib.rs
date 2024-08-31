@@ -259,8 +259,8 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     Schema::Boolean => quote! { Boolean(bool) },
                     Schema::Int => quote! { Int(i32) },
                     Schema::Long  => quote! { Int(i64) },
-                    Schema::Float => quote! { Float(i32) },
-                    Schema::Double => quote! { Float(i64) },
+                    Schema::Float => quote! { Float(f32) },
+                    Schema::Double => quote! { Float(f64) },
                     Schema::Bytes => todo!(),
                     Schema::String => quote! { String(String )},
                     Schema::Array(schema) => {
