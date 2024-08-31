@@ -639,10 +639,10 @@ pub fn create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         impl apache_avro::schema::derive::AvroSchemaComponent for #name {
             fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
                 let schemas = vec![ #(#variant_schemas::get_schema_in_ctxt(named_schemas, enclosing_namespace)),* ] ;
-                println!("FOOBAR: {:?}", &named_schemas);
+                
                 apache_avro::schema::Schema::Union(
                     apache_avro::schema::UnionSchema::new(schemas.into_iter().map(|schema|{
-                        println!("INNER SCHEMA {:?}", schema);
+                        named_schemas.insert(schema.name().unwrap().clone(), schema.clone());
                         schema
                       //  apache_avro::schema::Schema::Ref { name: schema.name().unwrap().clone() }
                 }).collect::<Vec<_>>()).unwrap()
