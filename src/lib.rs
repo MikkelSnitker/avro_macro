@@ -219,8 +219,11 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                       where
                           S: serde::Serializer,
                       {
-                      
-                       serializer.serialize_newtype_variant("", 1, "", self)
+                      match self {
+                        #name::String(v) => serializer.serialize_newtype_variant("", 1, "", v),
+                        _ => panic!("HMMMM") //serializer.serialize_newtype_variant("", 1, "", "FOOO")
+                      }
+                       
 
                         
                       }
