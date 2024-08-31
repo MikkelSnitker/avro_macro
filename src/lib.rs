@@ -13,10 +13,6 @@ use syn::punctuated::Punctuated;
 use syn::token::{Brace, Enum, Pub};
 use syn::{parse2, parse_macro_input, Field, Fields, FieldsUnnamed, Generics, Ident, Item, ItemEnum, ItemImpl, ItemMod, ItemStruct, ItemUse, LitStr, Token, Type, UseTree, Variant};
 
-
-
-
-
 #[derive(Debug, Clone)]
 struct  Error {
 
@@ -193,19 +189,23 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             }
             
             let name = match parent {
-                Some(parent) => Ident::new(capitalize(parent.name().unwrap().name.clone()).as_str(), Span::call_site()),
+                Some(parent) => Ident::new(capitalize(parent.name().unwrap().name.clone() ).as_str(), Span::call_site()),
                 None => Ident::new("TEST", Span::call_site()),
             };
 
             let mut item_enum: ItemEnum = syn::parse2::<ItemEnum>(quote! { 
-                #[derive(Clone,  serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+                #[derive(Clone, /* serde::Serialize,*/  serde::Deserialize, PartialEq, Debug)]
                 #[serde(untagged)]
                 pub enum #name {}
-             
+   
+                
             })?;
 
             
             let imp = syn::parse2::<ItemImpl>(quote! {
+
+
+
                 impl apache_avro::schema::derive::AvroSchemaComponent for #name {
                     fn get_schema_in_ctxt(named_schemas: &mut std::collections::HashMap<apache_avro::schema::Name, apache_avro::Schema>, enclosing_namespace: &apache_avro::schema::Namespace) -> apache_avro::Schema {
                         apache_avro::Schema::parse_str(#schema).unwrap()
@@ -213,6 +213,20 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                 }
             })?;
             
+            let ser = syn::parse2::<ItemImpl>(quote!{
+                impl<'a> serde::Serialize for #name {
+                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                      where
+                          S: serde::Serializer,
+                      {
+                      
+                       serializer.serialize_newtype_variant("", 1, "", self)
+
+                        
+                      }
+                    }
+            })?;
+            items.push(Item::Impl(ser));
 /*
             let de_serailize_imp = syn::parse2::<ItemImpl>(quote! {
                
@@ -316,27 +330,6 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
 pub fn load_schema(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let module = quote! { pub mod Schema {} };
     schema(item, module.into())
-}
-
-
-
-#[proc_macro_attribute]
-pub fn foobar(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut item_mod = parse_macro_input!(input as syn::ItemEnum);
-
-    let name = &item_mod.ident;
-
-    quote! {
-        #item_mod
-
-        impl #name {
-            fn foo() {
-                println!("FOOBAR")
-            }
-
-        }
-    }
-    .into()
 }
 
 
@@ -540,6 +533,7 @@ pub fn create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
      
 
         #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+        #[serde(untagged)]
         pub enum #input
     }).unwrap();
 
