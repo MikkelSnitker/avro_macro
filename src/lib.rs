@@ -213,23 +213,31 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                 }
             })?;
             
+            let variant = variants.iter().enumerate().map(|(index, v)| {
+                let variant = Ident::new(format!("{:?}",v).as_str(), Span::call_site()); //Ident::new( v.name().expect(format!("Name missing {:?}", v).as_str()).name.as_str(), Span::call_site());
+                quote! { #name::#variant(val) => serializer.serialize_newtype_variant("", #index as u32, stringify!(#variant), val) }
+            });
+          
+        
             let ser = syn::parse2::<ItemImpl>(quote!{
                 impl<'a> serde::Serialize for #name {
                     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                       where
                           S: serde::Serializer,
                       {
-                      match self {
-                        #name::String(v) => serializer.serialize_newtype_variant("", 1, "", v),
-                        _ => panic!("HMMMM") //serializer.serialize_newtype_variant("", 1, "", "FOOO")
-                      }
                        
+                      match self {
+                        #(#variant),*,
+                        _ => panic!("NO MATCH")
+                      } 
+                
 
                         
                       }
                     }
-            })?;
+            }).expect("FÅÅÅK");
             items.push(Item::Impl(ser));
+          
 /*
             let de_serailize_imp = syn::parse2::<ItemImpl>(quote! {
                
@@ -246,7 +254,7 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
             })?;
          */
             for variant in variants {
-                let test = match variant {
+                let variant = syn::parse2::<Variant>(match variant {
                     Schema::Null => quote! { Null },
                     Schema::Boolean => quote! { Boolean(bool) },
                     Schema::Int => quote! { Int(i32) },
@@ -279,15 +287,16 @@ pub fn get_type(&self, schema: &apache_avro::Schema, parent: Option<&apache_avro
                     Schema::BigDecimal => todo!(),
                     Schema::TimestampNanos => todo!(),
                     Schema::LocalTimestampNanos => todo!(),
-                };
-                let v = syn::parse2::<Variant>(test)?;
-                item_enum.variants.push(v);
+                })?;
+                item_enum.variants.push(variant);
             }
           
             let name = item_enum.ident.clone();
            
             items.push(Item::Impl(imp));
             items.push(Item::Enum(item_enum));
+
+           
       //      items.push(Item::Impl(de_serailize_imp));
         
             
