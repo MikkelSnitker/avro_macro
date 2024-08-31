@@ -641,7 +641,8 @@ pub fn create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 let schemas = vec![ #(#variant_schemas::get_schema_in_ctxt(named_schemas, enclosing_namespace)),* ] ;
                 apache_avro::schema::Schema::Union(
                     apache_avro::schema::UnionSchema::new(schemas.into_iter().map(|schema|{
-                        apache_avro::schema::Schema::Ref { name: schema.name().unwrap().clone() }
+                        schema
+                      //  apache_avro::schema::Schema::Ref { name: schema.name().unwrap().clone() }
                 }).collect::<Vec<_>>()).unwrap()
        )
     }
